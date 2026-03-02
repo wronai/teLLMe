@@ -39,7 +39,7 @@ services:
 
   nlp2cmd:
     build:
-      context: ../nlp2cmd
+      context: ./nlp2cmd-src
       dockerfile: Dockerfile
       target: runtime
     container_name: tellme-nlp2cmd
@@ -71,7 +71,7 @@ services:
 
   toonic:
     build:
-      context: ../toonic
+      context: ./toonic-src
       dockerfile: docker/Dockerfile
     container_name: tellme-toonic
     ports:

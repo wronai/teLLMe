@@ -16,6 +16,10 @@ help: ## Show this help
 prepare: ## Prepare build context (copy sibling repos)
 	@echo "Preparing build contexts..."
 	@mkdir -p workspace
+	@# nlp2cmd source
+	@rm -rf nlp2cmd-src && cp -r ../nlp2cmd nlp2cmd-src && rm -rf nlp2cmd-src/.git nlp2cmd-src/.venv nlp2cmd-src/venv nlp2cmd-src/.venv
+	@# toonic source
+	@rm -rf toonic-src && cp -r ../toonic toonic-src && rm -rf toonic-src/.git toonic-src/.venv toonic-src/venv
 	@# code2llm source for its Dockerfile
 	@rm -rf code2llm-src && cp -r ../code2llm code2llm-src && rm -rf code2llm-src/.git code2llm-src/.venv code2llm-src/venv
 	@# stts source for its Dockerfile
