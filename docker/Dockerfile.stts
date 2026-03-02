@@ -1,0 +1,23 @@
+# =============================================================================
+# stts — Voice I/O as HTTP API (headless mode)
+# =============================================================================
+FROM python:3.11-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    espeak sox alsa-utils curl \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY stts-src/ /tmp/stts-src/
+RUN pip install --no-cache-dir fastapi uvicorn httpx pyyaml \
+    && cd /tmp/stts-src/python && pip install --no-cache-dir -e . || true \
+    && rm -rf /tmp/stts-src/.git
+
+COPY tellme/services/stts_api.py /app/stts_api.py
+
+ENV STTS_CONFIG_DIR=/stts-cache
+
+EXPOSE 8200
+
+CMD ["python", "/app/stts_api.py"]

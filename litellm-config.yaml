@@ -1,0 +1,41 @@
+# =============================================================================
+# LiteLLM Proxy Configuration for teLLMe
+# =============================================================================
+# Routes requests to local Ollama and optional cloud providers.
+
+model_list:
+  # ── Local Ollama Models ───────────────────────────────────────────────────
+  - model_name: default
+    litellm_params:
+      model: ollama/qwen2.5-coder:7b
+      api_base: http://ollama:11434
+
+  - model_name: qwen-coder
+    litellm_params:
+      model: ollama/qwen2.5-coder:7b
+      api_base: http://ollama:11434
+
+  - model_name: qwen-small
+    litellm_params:
+      model: ollama/qwen2.5:3b
+      api_base: http://ollama:11434
+
+  # ── Cloud Fallbacks (optional, need API keys) ────────────────────────────
+  # - model_name: gpt-4o
+  #   litellm_params:
+  #     model: openai/gpt-4o
+  #     api_key: os.environ/OPENAI_API_KEY
+
+  # - model_name: claude-sonnet
+  #   litellm_params:
+  #     model: anthropic/claude-sonnet-4-20250514
+  #     api_key: os.environ/ANTHROPIC_API_KEY
+
+litellm_settings:
+  drop_params: true
+  set_verbose: false
+  num_retries: 2
+  request_timeout: 120
+
+general_settings:
+  master_key: null

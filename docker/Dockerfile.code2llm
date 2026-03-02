@@ -1,0 +1,22 @@
+# =============================================================================
+# code2llm — HTTP API wrapper for code analysis
+# =============================================================================
+FROM python:3.12-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install code2llm from local mount + API deps
+COPY code2llm-src/ /tmp/code2llm-src/
+RUN pip install --no-cache-dir fastapi uvicorn httpx pyyaml \
+    && pip install --no-cache-dir /tmp/code2llm-src/ \
+    && rm -rf /tmp/code2llm-src/
+
+COPY tellme/services/code2llm_api.py /app/code2llm_api.py
+
+EXPOSE 8100
+
+CMD ["python", "/app/code2llm_api.py"]

@@ -1,0 +1,201 @@
+# =============================================================================
+# teLLMe — Docker Compose: Unified wronai platform
+# =============================================================================
+# Services:
+#   litellm      — LLM proxy/router (port 4000)
+#   nlp2cmd      — NLP → command translation (port 8000)
+#   toonic       — File/media monitoring (port 8900)
+#   code2llm     — Code analysis API (port 8100)
+#   stts         — Voice I/O shell (port 8200)
+#   gateway      — Orchestrator API (port 9000)
+# =============================================================================
+
+services:
+  # ── LLM Layer ─────────────────────────────────────────────────────────────
+
+  litellm:
+    image: ghcr.io/berriai/litellm:main-latest
+    container_name: tellme-litellm
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./litellm-config.yaml:/app/config.yaml:ro
+    command: ["--config", "/app/config.yaml", "--port", "4000"]
+    environment:
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:4000/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+    networks:
+      - tellme
+
+  # ── Application Services ──────────────────────────────────────────────────
+
+  nlp2cmd:
+    build:
+      context: ../nlp2cmd
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: tellme-nlp2cmd
+    ports:
+      - "${NLP2CMD_PORT:-8000}:8000"
+    environment:
+      - PYTHONPATH=/app/src
+      - NLP2CMD_HOST=0.0.0.0
+      - NLP2CMD_PORT=8000
+      - NLP2CMD_LOG_LEVEL=${NLP2CMD_LOG_LEVEL:-info}
+      - NLP2CMD_AUTO_EXECUTE=${NLP2CMD_AUTO_EXECUTE:-false}
+      - LITELLM_API_BASE=http://litellm:4000
+      - LITELLM_MODEL=${LITELLM_MODEL:-ollama/qwen2.5-coder:7b}
+    volumes:
+      - workspace:/workspace
+    depends_on:
+      litellm:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    command: ["python", "-m", "nlp2cmd", "service", "--host", "0.0.0.0", "--port", "8000"]
+    restart: unless-stopped
+    networks:
+      - tellme
+
+  toonic:
+    build:
+      context: ../toonic
+      dockerfile: docker/Dockerfile
+    container_name: tellme-toonic
+    ports:
+      - "${TOONIC_PORT:-8900}:8900"
+    environment:
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      - LLM_MODEL=${LLM_MODEL:-ollama/qwen2.5-coder:7b}
+      - TOONIC_LOG_LEVEL=${TOONIC_LOG_LEVEL:-INFO}
+    volumes:
+      - workspace:/workspace:ro
+    depends_on:
+      litellm:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8900/api/status || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    command: >
+      --port 8900
+      --source file:/workspace
+      --goal "monitor workspace files for changes"
+      --interval 60
+    restart: unless-stopped
+    networks:
+      - tellme
+
+  code2llm:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.code2llm
+    container_name: tellme-code2llm
+    ports:
+      - "8100:8100"
+    environment:
+      - PYTHONPATH=/app
+    volumes:
+      - workspace:/workspace:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8100/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - tellme
+
+  stts:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.stts
+    container_name: tellme-stts
+    ports:
+      - "8200:8200"
+    environment:
+      - STTS_CONFIG_DIR=/stts-cache
+      - NLP2CMD_URL=http://nlp2cmd:8000
+    volumes:
+      - stts-cache:/stts-cache
+      - workspace:/workspace
+    depends_on:
+      nlp2cmd:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8200/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - tellme
+
+  # ── Gateway (Orchestrator) ────────────────────────────────────────────────
+
+  gateway:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.gateway
+    container_name: tellme-gateway
+    ports:
+      - "${GATEWAY_PORT:-9000}:9000"
+    environment:
+      - GATEWAY_PORT=9000
+      - GATEWAY_LOG_LEVEL=${GATEWAY_LOG_LEVEL:-info}
+      - OLLAMA_URL=http://host.docker.internal:11434
+      - LITELLM_URL=http://litellm:4000
+      - NLP2CMD_URL=http://nlp2cmd:8000
+      - TOONIC_URL=http://toonic:8900
+      - CODE2LLM_URL=http://code2llm:8100
+      - STTS_URL=http://stts:8200
+    volumes:
+      - workspace:/workspace
+    depends_on:
+      nlp2cmd:
+        condition: service_healthy
+      toonic:
+        condition: service_healthy
+      code2llm:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9000/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - tellme
+
+# =============================================================================
+networks:
+  tellme:
+    driver: bridge
+    name: tellme
+
+volumes:
+  stts-cache:
+    name: tellme-stts-cache
+  workspace:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${WORKSPACE_DIR:-./workspace}
