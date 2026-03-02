@@ -72,7 +72,7 @@ lint: ## Lint code
 # ── Cleanup ─────────────────────────────────────────────────────────────────
 
 clean: ## Remove build artifacts and temp dirs
-	rm -rf code2llm-src stts-src
+	rm -rf nlp2cmd-src toonic-src code2llm-src stts-src
 	rm -rf __pycache__ .pytest_cache
 	rm -rf tellme/__pycache__ tests/__pycache__
 	rm -rf tellme/services/__pycache__
